@@ -7,15 +7,8 @@ client = OpenAI(
 
 completion = client.chat.completions.create(
     model="mistralai/mistral-7b-instruct",
-    messages=[
-        {
-            "role": "user",
-            "content": "What meaning of life?"
-        }
-    ],
-    max_tokens=5
+    messages=[{"role": "user", "content": "What meaning of life?"}],
+    max_tokens=5,
 )
 
 print(completion.choices[0].message.content)
-
-
