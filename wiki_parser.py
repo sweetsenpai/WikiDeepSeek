@@ -1,13 +1,9 @@
-import asyncio
 import re
 from urllib.parse import urljoin
 
-import httpx
 from bs4 import BeautifulSoup
 
-from AI_MODEL import AI
-
-base_url = "https://ru.wikipedia.org"
+BASE_URL = "https://ru.wikipedia.org"
 
 
 class ArticleParser:
@@ -41,9 +37,9 @@ class ArticleParser:
         )
         if not article_soup:
             return False
-        else:
-            self.article_soup = article_soup
-            return True
+
+        self.article_soup = article_soup
+        return True
 
     def get_article_title(self) -> str:
         self.title = self.soup.title.text
@@ -57,7 +53,7 @@ class ArticleParser:
             paragraphs_list.append(p.text)
             for a in p.find_all('a', title=True, href=re.compile("^/wiki/")):
                 if a:
-                    urls_list.append(urljoin(base_url, href))
+                    urls_list.append(urljoin(BASE_URL, a['href']))
         if paragraphs_list:
             self.article_text = "\n".join(paragraphs_list)
         self.article_related_urls = urls_list
@@ -72,5 +68,5 @@ class ArticleParser:
                 "text": self.article_text,
                 "related_urls": self.article_related_urls,
             }
-        else:
-            return None
+
+        return None

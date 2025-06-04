@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 
@@ -23,8 +22,8 @@ class AI:
         Инициализирует экземпляр класса AI.
 
         Args:
-            ai_key (str, optional): API-ключ для доступа к ИИ-моделям. По умолчанию берется из .env.
-            ai_url (str, optional): Базовый URL сервера с ИИ-моделями.  По умолчанию берется из .env.
+            ai_key (str, optional): API-ключ для доступа к ИИ-моделям.
+            ai_url (str, optional): Базовый URL сервера с ИИ-моделями.
 
         Raises:
             RuntimeError: Если не передан хотя бы один из параметров: `ai_key` или `ai_url`.
