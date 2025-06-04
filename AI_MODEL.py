@@ -1,9 +1,11 @@
 import asyncio
+import logging
 import os
 
 from dotenv import load_dotenv
-from openai import AsyncClient
+from openai import AsyncClient, OpenAIError
 
+logger = logging.getLogger(__name__)
 load_dotenv()
 
 key = os.getenv("OPENAI_KEY")
@@ -58,14 +60,18 @@ class AI:
         Returns:
             str: Краткое содержание текста, сгенерированное моделью.
         """
-        completion = await self.client.chat.completions.create(
-            model=ai_model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Сделай краткое содержание следующего текста:\n\n{text}",
-                }
-            ],
-            max_tokens=256,
-        )
-        return completion.choices[0].message.content
+        try:
+            completion = await self.client.chat.completions.create(
+                model=ai_model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"Сделай краткое содержание текста:\n\n{text}",
+                    }
+                ],
+                max_tokens=256,
+            )
+            return completion.choices[0].message.content
+        except OpenAIError as e:
+            logger.warning(f"Ошибка при генерации summary: {e}")
+            return "[Не удалось сгенерировать краткое содержание]"
