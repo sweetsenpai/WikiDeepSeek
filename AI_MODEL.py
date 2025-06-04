@@ -69,7 +69,7 @@ class AI:
                         "content": f"Сделай краткое содержание текста:\n\n{text}",
                     }
                 ],
-                max_tokens=256,
+                max_tokens=512,
             )
             return completion.choices[0].message.content
         except OpenAIError as e:
