@@ -1,9 +1,7 @@
 import re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
-
-BASE_URL = "https://ru.wikipedia.org"
 
 
 class ArticleParser:
@@ -21,15 +19,19 @@ class ArticleParser:
         article_text (str | None): Текст статьи, собранный из тегов <p>.
         article_related_urls (list[str] | None): Список абсолютных URL связанных статей.
         title (str | None): Заголовок статьи (тег <title>).
+        base_url(str): Базовый url на основе которого будут строиться связанные url.
     """
 
-    def __init__(self, response_text: str, article_url: str):
+    def __init__(self, response_text: str, article_url: str, level: int = 0):
         self.soup = BeautifulSoup(response_text, 'lxml')
         self.url = article_url
+        parsed_url = urlparse(self.url)
+        self.base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
         self.article_soup = None
         self.article_text = None
         self.article_related_urls = None
         self.title = None
+        self.level = level
 
     def article_health_check(self) -> bool:
         article_soup = self.soup.find(
@@ -45,28 +47,30 @@ class ArticleParser:
         self.title = self.soup.title.text
         return self.title
 
-    def get_article_text_and_realyted_articls(self) -> tuple[str, list]:
+    def get_article_text_and_related_articles(self) -> tuple[str, set[str]]:
         paragraphs_list = []
-        urls_list = []
+        urls_set = set()
 
         for p in self.article_soup.find_all('p'):
             paragraphs_list.append(p.text)
             for a in p.find_all('a', title=True, href=re.compile("^/wiki/")):
                 if a:
-                    urls_list.append(urljoin(BASE_URL, a['href']))
+                    urls_set.add(urljoin(self.base_url, a['href']))
+
         if paragraphs_list:
             self.article_text = "\n".join(paragraphs_list)
-        self.article_related_urls = urls_list
+        self.article_related_urls = urls_set
         return self.article_text, self.article_related_urls
 
     def article_collect_data(self) -> dict | None:
         if self.article_health_check():
             self.get_article_title()
-            self.get_article_text_and_realyted_articls()
+            self.get_article_text_and_related_articles()
             return {
                 "title": self.title,
                 "text": self.article_text,
                 "related_urls": self.article_related_urls,
+                "level": self.level,
             }
 
         return None

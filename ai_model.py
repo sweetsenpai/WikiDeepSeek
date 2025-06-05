@@ -2,7 +2,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from openai import AsyncClient, OpenAIError
+from openai import AsyncClient, AuthenticationError, OpenAIError
 
 logger = logging.getLogger(__name__)
 load_dotenv()
