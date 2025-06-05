@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 import httpx
 from tenacity import (
@@ -9,15 +10,15 @@ from tenacity import (
     wait_exponential,
 )
 
+from ai_model import AI
 from wiki_parser import ArticleParser
 
-processed_urls = {}
-failed_urls = set()
-not_processed_urls = set()
+MAX_LEVEL = 1
+CONCURRENT_WORKERS = 20
+START_URL = 'https://ru.wikipedia.org/wiki/Python'
 
-start_url = 'https://ru.wikipedia.org/wiki/Python'
-
-not_processed_urls.add(start_url)
+processed = set()
+failed = set()
 
 
 @retry(
@@ -27,36 +28,54 @@ not_processed_urls.add(start_url)
         (httpx.ConnectError, httpx.HTTPError, httpx.ReadError, httpx.TimeoutException)
     ),
 )
-async def fetch(url: str, client: httpx.AsyncClient):
-    response = await client.get(url, timeout=5.0)
-    response.raise_for_status()
-    article = ArticleParser(response.text, url)
-    x = await asyncio.to_thread(article.article_collect_data)
-    print(x.get('title'))
-    return response
+async def fetch_and_parse(
+    url: str, client: httpx.AsyncClient, queue: asyncio.Queue, level: int = 0
+):
+    try:
+        response = await client.get(url, timeout=5.0)
+        response.raise_for_status()
+        article = ArticleParser(response.text, url, level=level)
+        parced_page = await asyncio.to_thread(article.article_collect_data)
+        print(
+            f"✅ Успешно: {url}\n{parced_page.get('title')}\nlevel:{article.level}\nСвязанных ссылок:{len(article.article_related_urls)}\n--------------------"
+        )
+        print(f"Всего обработанно ссылок:{len(processed)}")
+        if article.level < MAX_LEVEL:
+            for new_url in article.article_related_urls:
+                if new_url not in processed and new_url not in failed:
+                    await queue.put((new_url, article.level + 1))
+                    processed.add(new_url)
+    except Exception as e:
+        print(f"❌ Ошибка на {url}: {e}")
+        failed.add(url)
+
+
+async def worker(name: str, queue: asyncio.Queue, client: httpx.AsyncClient):
+    while True:
+        url, level = await queue.get()
+        await fetch_and_parse(url, client, queue, level)
+        queue.task_done()
 
 
 async def main():
+    start_time = time.time()
+    queue = asyncio.Queue()
+    await queue.put((START_URL, 0))
+
     async with httpx.AsyncClient() as client:
         tasks = []
-        for url in not_processed_urls:
-            tasks.append((url, fetch(url, client)))
+        for i in range(CONCURRENT_WORKERS):
+            task = asyncio.create_task(worker(f"worker-{i}", queue, client))
+            tasks.append(task)
 
-        results = await asyncio.gather(
-            *[task for _, task in tasks], return_exceptions=True
-        )
-
-        for (url, _), result in zip(tasks, results):
-            if isinstance(result, Exception):
-                print(f"❌ Ошибка при обработке {url}: {result}")
-                failed_urls.add(url)
-            else:
-                print(f"✅ Успешно: {url}")
-                processed_urls[url] = result
-
-        print(f"\nУспешно получено {len(processed_urls)} страниц.")
-        print(f"Не удалось получить: {len(failed_urls)}")
-        print(not_processed_urls)
+        await queue.join()
+        for task in tasks:
+            task.cancel()
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"Всего обработанно ссылок:{len(processed)}")
+    print(f"Всего не валидных ссылок:{len(failed)}")
+    print(f"Время выполнения: {execution_time:.4f} секунд")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,8 @@ from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
+MAX_LEVEL = 5
+
 
 class ArticleParser:
     """
@@ -44,7 +46,7 @@ class ArticleParser:
         return True
 
     def get_article_title(self) -> str:
-        self.title = self.soup.title.text
+        self.title = self.soup.title.text.replace(' — Википедия', '')
         return self.title
 
     def get_article_text_and_related_articles(self) -> tuple[str, set[str]]:
@@ -60,6 +62,10 @@ class ArticleParser:
         if paragraphs_list:
             self.article_text = "\n".join(paragraphs_list)
         self.article_related_urls = urls_set
+
+        if not self.article_related_urls:
+            self.level = MAX_LEVEL
+
         return self.article_text, self.article_related_urls
 
     def article_collect_data(self) -> dict | None:
@@ -72,5 +78,5 @@ class ArticleParser:
                 "related_urls": self.article_related_urls,
                 "level": self.level,
             }
-
+        self.level = MAX_LEVEL
         return None
