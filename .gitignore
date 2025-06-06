@@ -112,3 +112,4 @@ venv/
 
 # macOS
 .DS_Store
+/pgdata/
