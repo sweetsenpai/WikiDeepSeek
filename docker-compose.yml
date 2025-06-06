@@ -8,7 +8,7 @@ services:
       - "8000:8000"
     command: >
       bash -c "
-      fastapi dev main.py --host 0.0.0.0 --port 8000
+      fastapi dev app/main.py --host 0.0.0.0 --port 8000
       "
     volumes:
        - .:/app
