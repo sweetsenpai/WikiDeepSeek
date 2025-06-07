@@ -11,4 +11,8 @@ dramatiq.set_broker(redis_broker)
 
 @dramatiq.actor
 def parser_wrapper(url):
-    asyncio.run(run_parser(url))
+    try:
+        asyncio.run(run_parser(url))
+    except Exception as e:
+        print(f"Error in parser_wrapper: {e}")
+        raise

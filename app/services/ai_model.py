@@ -1,10 +1,11 @@
 import logging
 import os
 
-from dotenv import load_dotenv
 from openai import AsyncClient, AuthenticationError, OpenAIError
 
 logger = logging.getLogger(__name__)
+from dotenv import load_dotenv
+
 load_dotenv()
 
 key = os.getenv("OPENAI_KEY")

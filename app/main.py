@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from logging.config import dictConfig
 
 import redis.asyncio as redis
+from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
 from tortoise.contrib.fastapi import register_tortoise
 
@@ -16,6 +17,8 @@ from app.db.pydentic_models import (
     WikiArticleSummary_Pydantic,
 )
 from app.tasks import parser_wrapper
+
+load_dotenv()
 
 dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("app")
@@ -44,13 +47,6 @@ register_tortoise(
     generate_schemas=False,
     add_exception_handlers=True,
 )
-
-
-@app.get("/cache-test/")
-async def some_route(redis_client: redis.Redis = Depends(get_redis_client)):
-    await redis_client.set("my_key", "Hello from Redis")
-    value = await redis_client.get("my_key")
-    return {"cached_value": value}
 
 
 @app.post(

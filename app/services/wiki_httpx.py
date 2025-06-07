@@ -1,7 +1,11 @@
 import asyncio
+import logging
+import os
 import time
 
 import httpx
+import redis.asyncio as redis
+from dotenv import load_dotenv
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -9,10 +13,15 @@ from tenacity import (
     wait_exponential,
 )
 
+from app.configs.redis_config import get_redis
+
 from .wiki_parser import ArticleParser
 
-MAX_LEVEL = 5
-CONCURRENT_WORKERS = 20
+load_dotenv()
+logger = logging.getLogger(__name__)
+
+MAX_LEVEL = int(os.getenv("MAX_LEVEL"))
+CONCURRENT_WORKERS = int(os.getenv("CONCURRENT_WORKERS"))
 
 processed = set()
 in_work = {}
@@ -37,37 +46,36 @@ async def fetch_and_parse(
         parced_page = await asyncio.to_thread(article.article_collect_data)
         del in_work[url]
         if parced_page:
-            processed.add(url)
+            await redis.sadd.add("processed", url)
         else:
-            failed.add(url)
-        print(
+            await redis.sadd.add("failed", url)
+        logger.debug(
             f"✅ Успешно: {url}\n{parced_page.get('title')}\nlevel:{article.level}\nСвязанных ссылок:{len(article.article_related_urls)}\n--------------------"
         )
-        print(f"Всего обработанно ссылок:{len(processed)}")
+        logger.debug(
+            f"Всего обработанно ссылок:{len(await redis.smembers('processed'))}"
+        )
         if article.level < MAX_LEVEL:
             for new_url in article.article_related_urls:
-                if new_url not in processed and new_url not in failed:
-                    print(
-                        f"Добавляю в очередь: {new_url}, текущий размер: {queue.qsize()}"
-                    )
+                if not await redis_client.sismember(
+                    "processed", url
+                ) and not await redis_client.sismember("failed", url):
                     await queue.put((new_url, article.level + 1))
-                    print(f"Добавил в очередь: {new_url}")
 
     except Exception as e:
-        print(f"❌ Ошибка на {url}: {e}")
-        failed.add(url)
+        logger.warning(f"❌ Ошибка на {url}: {e}")
+        await redis.sadd.add("failed", url)
 
 
-async def worker(queue: asyncio.Queue, client: httpx.AsyncClient):
+async def worker(queue: asyncio.Queue, client: httpx.AsyncClient, redis):
     while True:
         url, level = await queue.get()
-        await asyncio.wait_for(fetch_and_parse(url, client, queue, level), 5)
+        await asyncio.wait_for(fetch_and_parse(url, client, queue, level, redis), 5)
         queue.task_done()
 
 
 async def run_parser(start_url: str = 'https://ru.wikipedia.org/wiki/Python'):
-
-    start_time = time.time()
+    redis = get_redis()
     queue = asyncio.Queue()
     await queue.put((start_url, 0))
     limits = httpx.Limits(max_connections=500, max_keepalive_connections=50)
@@ -76,14 +84,10 @@ async def run_parser(start_url: str = 'https://ru.wikipedia.org/wiki/Python'):
     async with httpx.AsyncClient(limits=limits, timeout=timeout) as client:
         tasks = []
         for i in range(CONCURRENT_WORKERS):
-            task = asyncio.create_task(worker(queue, client))
+            task = asyncio.create_task(worker(queue, client, redis))
             tasks.append(task)
 
         await queue.join()
+
         for task in tasks:
             task.cancel()
-    end_time = time.time()
-    execution_time = end_time - start_time
-    print(f"Всего обработанно ссылок:{len(processed)}")
-    print(f"Всего не валидных ссылок:{len(failed)}")
-    print(f"Время выполнения: {execution_time:.4f} секунд")
