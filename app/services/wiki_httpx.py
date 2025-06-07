@@ -45,10 +45,9 @@ async def fetch_and_parse(
         article = ArticleParser(response.text, url, level=level)
         parced_page = await asyncio.to_thread(article.article_collect_data)
         del in_work[url]
-        if parced_page:
-            await redis.sadd.add("processed", url)
-        else:
+        if not parced_page:
             await redis.sadd.add("failed", url)
+
         logger.debug(
             f"✅ Успешно: {url}\n{parced_page.get('title')}\nlevel:{article.level}\nСвязанных ссылок:{len(article.article_related_urls)}\n--------------------"
         )
@@ -56,6 +55,7 @@ async def fetch_and_parse(
             f"Всего обработанно ссылок:{len(await redis.smembers('processed'))}"
         )
         if article.level < MAX_LEVEL:
+            await redis.sadd.add("processed", url)
             for new_url in article.article_related_urls:
                 if not await redis_client.sismember(
                     "processed", url
