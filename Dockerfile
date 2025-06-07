@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y curl && \
 
 ENV PATH="/root/.local/bin:$PATH"
 
-WORKDIR /app
+WORKDIR /app/app
 
 COPY pyproject.toml poetry.lock /app/
 
