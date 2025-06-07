@@ -1,10 +1,17 @@
-from sqlalchemy import Column, Integer, String
-
-from .database import Base
+from tortoise import fields, models
 
 
-class Test(Base):
-    __tablename__ = "tests"
+class WikiArticls(models.Model):
+    """
+    Модель статьи из Wikipedia
+    """
 
-    id = Column(Integer, primary_key=True, index=True)
-    text = Column(String, index=True)
+    id = fields.IntField(primary_key=True)
+    url = fields.CharField(max_length=512, index=True)
+
+    title = fields.CharField(max_length=200)
+    text = fields.TextField()
+    summary = fields.TextField()
+
+    class Meta:
+        table = 'wikiarticls'

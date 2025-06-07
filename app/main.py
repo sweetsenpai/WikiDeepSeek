@@ -1,20 +1,30 @@
-from typing import Union
-
+from configs.tortoies_config import TORTOISE_ORM
 from fastapi import FastAPI
-
-from app.core.models import *
-from app.core.redis_model import Redis
-
-from .services.wiki_parser import ArticleParser
+from models import WikiArticls
+from tortoise.contrib.fastapi import register_tortoise
+from tortoise.contrib.pydantic import pydantic_model_creator
 
 app = FastAPI()
 
+register_tortoise(
+    app,
+    config=TORTOISE_ORM,
+    generate_schemas=False,
+    add_exception_handlers=True,
+)
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+Article_Pydantic = pydantic_model_creator(WikiArticls, name="WikiArticls")
+ArticleIn_Pydantic = pydantic_model_creator(
+    WikiArticls, name="ArticleIn", exclude_readonly=True
+)
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+@app.post("/articles", response_model=Article_Pydantic)
+async def create_article(article: ArticleIn_Pydantic):
+    article_obj = await WikiArticls.create(**article.model_dump())
+    return await Article_Pydantic.from_tortoise_orm(article_obj)
+
+
+@app.get("/articles", response_model=list[Article_Pydantic])
+async def get_articles():
+    return await Article_Pydantic.from_queryset(WikiArticls.all())
