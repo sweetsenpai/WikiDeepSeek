@@ -2,13 +2,20 @@ import logging
 from contextlib import asynccontextmanager
 from logging.config import dictConfig
 
-from fastapi import FastAPI, Query
+import redis.asyncio as redis
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
 from tortoise.contrib.fastapi import register_tortoise
-from tortoise.contrib.pydantic import pydantic_model_creator
 
 from app.configs.logger_config import LOGGING_CONFIG
+from app.configs.redis_config import get_redis
 from app.configs.tortoise_config import TORTOISE_ORM
-from app.models import WikiArticls
+from app.db.models import WikiArticls
+from app.db.pydentic_models import (
+    WikiArticle_Pydantic,
+    WikiArticleIn_Pydantic,
+    WikiArticleSummary_Pydantic,
+)
+from app.tasks import parser_wrapper
 
 dictConfig(LOGGING_CONFIG)
 logger = logging.getLogger("app")
@@ -16,12 +23,19 @@ logger = logging.getLogger("app")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global redis_client
     logger.info("FastAPI app started")
+    redis_client = await get_redis()
     yield
+    await redis_client.aclose()
     logger.info("FastAPI app stopped")
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+async def get_redis_client():
+    return redis_client
 
 
 register_tortoise(
@@ -31,19 +45,34 @@ register_tortoise(
     add_exception_handlers=True,
 )
 
-Article_Pydantic = pydantic_model_creator(WikiArticls, name="WikiArticls")
-ArticleIn_Pydantic = pydantic_model_creator(
-    WikiArticls, name="ArticleIn", exclude_readonly=True
+
+@app.get("/cache-test/")
+async def some_route(redis_client: redis.Redis = Depends(get_redis_client)):
+    await redis_client.set("my_key", "Hello from Redis")
+    value = await redis_client.get("my_key")
+    return {"cached_value": value}
+
+
+@app.post(
+    "/articles/",
+    description="Запускате рекурсивный парсер на основе полученного url",
+    summary="Запуск парсера",
 )
+async def run_parser(
+    url: str = Query(..., description=" Стартровый url"),
+):
+    parser_wrapper.send(url)
+    return {"status": "Парсинг запущен!"}
 
 
-@app.post("/articles", response_model=Article_Pydantic)
-async def create_article(article: ArticleIn_Pydantic):
-    article_obj = await WikiArticls.create(**article.model_dump())
-    return await Article_Pydantic.from_tortoise_orm(article_obj)
-
-
-@app.get("/articles/", response_model=Article_Pydantic)
-async def search_articles(url: str = Query(...)):
+@app.get(
+    "/articles/summary",
+    response_model=WikiArticleSummary_Pydantic,
+    description="Получение summary статьи по её url",
+    summary="Summary статьи",
+)
+async def articles_summary(url: str = Query(..., description="url статьи")):
     article_obj = await WikiArticls.filter(url=url).first()
-    return await Article_Pydantic.from_tortoise_orm(article_obj)
+    if not article_obj:
+        raise HTTPException(status_code=404, detail="Article not found")
+    return await ArticleSummary_Pydantic.from_tortoise_orm(article_obj)

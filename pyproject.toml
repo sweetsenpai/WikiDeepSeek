@@ -22,6 +22,9 @@ sqlalchemy = "^2.0.41"
 psycopg2-binary = "^2.9.10"
 aerich = "^0.9.0"
 python-json-logger = "^3.3.0"
+celery = "^5.5.3"
+eventlet = "^0.40.0"
+dramatiq = {extras = ["redis"], version = "^1.18.0"}
 
 [tool.poetry.dependencies.fastapi]
 extras = ["standard"]

@@ -8,6 +8,7 @@ services:
       - "8000:8000"
     command: >
       bash -c "
+      aerich migrate && \
       aerich upgrade && \
       uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
       "
@@ -46,6 +47,23 @@ services:
       retries: 5
       start_period: 30s
       timeout: 5s
+
+  dramatiq_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: >
+      bash -c "
+      dramatiq app.tasks --processes 1 --threads 8
+      "
+    depends_on:
+      redis:
+        condition: service_healthy
+
 
 volumes:
   pgdbdata:

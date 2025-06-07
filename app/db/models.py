@@ -7,8 +7,7 @@ class WikiArticls(models.Model):
     """
 
     id = fields.IntField(primary_key=True)
-    url = fields.CharField(max_length=512, index=True)
-
+    url = fields.CharField(max_length=512, index=True, unique=True)
     title = fields.CharField(max_length=200)
     text = fields.TextField()
     summary = fields.TextField()

@@ -8,11 +8,11 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
 )
-from wiki_parser import ArticleParser
 
-MAX_LEVEL = 2
+from .wiki_parser import ArticleParser
+
+MAX_LEVEL = 5
 CONCURRENT_WORKERS = 20
-START_URL = 'https://ru.wikipedia.org/wiki/Python'
 
 processed = set()
 in_work = {}
@@ -65,11 +65,11 @@ async def worker(queue: asyncio.Queue, client: httpx.AsyncClient):
         queue.task_done()
 
 
-async def main():
+async def run_parser(start_url: str = 'https://ru.wikipedia.org/wiki/Python'):
 
     start_time = time.time()
     queue = asyncio.Queue()
-    await queue.put((START_URL, 0))
+    await queue.put((start_url, 0))
     limits = httpx.Limits(max_connections=500, max_keepalive_connections=50)
     timeout = httpx.Timeout(5.0, connect=3.0)
 
@@ -87,7 +87,3 @@ async def main():
     print(f"Всего обработанно ссылок:{len(processed)}")
     print(f"Всего не валидных ссылок:{len(failed)}")
     print(f"Время выполнения: {execution_time:.4f} секунд")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
